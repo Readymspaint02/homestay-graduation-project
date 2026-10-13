@@ -112,6 +112,40 @@ homestay-graduation-project/
 
 ---
 
+## 📸 系统截图展示
+
+### 系统架构
+
+![系统功能架构图](docs/screenshots/system-architecture.jpg)
+
+### 租客端
+
+| 在线预订 | 订单管理 |
+|----------|----------|
+| ![在线预订](docs/screenshots/booking.jpg) | ![订单管理](docs/screenshots/order-management.jpg) |
+
+| AI 选房助手 | 高德地图定位 |
+|------------|--------------|
+| ![AI选房助手](docs/screenshots/ai-assistant.jpg) | ![高德地图定位](docs/screenshots/map-location.jpg) |
+
+### 房东端
+
+| 房源管理 | 日历房态 |
+|----------|----------|
+| ![房源管理](docs/screenshots/homestay-manage.jpg) | ![日历房态](docs/screenshots/room-calendar.jpg) |
+
+| 收入统计 |
+|----------|
+| ![收入统计](docs/screenshots/income-stats.jpg) |
+
+### 管理后台
+
+| 房源审核 | 订单监控 | 数据看板 |
+|----------|----------|----------|
+| ![房源审核](docs/screenshots/homestay-audit.jpg) | ![订单监控](docs/screenshots/order-monitor.jpg) | ![数据看板](docs/screenshots/dashboard.jpg) |
+
+---
+
 ## 🚀 快速开始
 
 ### 环境要求
