@@ -1,0 +1,302 @@
+<template>
+  <div class="page-view">
+    <div class="page-header">
+      <h2>房源管理</h2>
+      <p>管理您的所有房源，发布新房源或编辑现有房源</p>
+    </div>
+    
+    <div class="table-operations">
+      <a-space wrap>
+        <a-select v-model:value="filters.auditStatus" style="width: 140px" placeholder="审核状态" allow-clear>
+          <a-select-option value="">全部</a-select-option>
+          <a-select-option value="0">待审核</a-select-option>
+          <a-select-option value="1">已通过</a-select-option>
+          <a-select-option value="2">已拒绝</a-select-option>
+        </a-select>
+        <a-select v-model:value="filters.publishStatus" style="width: 120px" placeholder="上架状态" allow-clear>
+          <a-select-option value="">全部</a-select-option>
+          <a-select-option value="0">草稿</a-select-option>
+          <a-select-option value="1">已上架</a-select-option>
+          <a-select-option value="2">已下架</a-select-option>
+        </a-select>
+        <a-input v-model:value="filters.title" style="width: 200px" placeholder="房源名称" allow-clear @pressEnter="handleQuery" />
+        <a-button type="primary" @click="handleQuery">查询</a-button>
+        <a-button @click="handleReset">重置</a-button>
+        <a-button type="primary" @click="handleCreate">新增房源</a-button>
+      </a-space>
+    </div>
+
+    <a-table
+      size="middle"
+      rowKey="id"
+      :loading="data.loading"
+      :columns="columns"
+      :data-source="processedRows"
+      :scroll="{ x: 'max-content' }"
+      :pagination="{
+        size: 'default',
+        current: data.page,
+        pageSize: data.pageSize,
+        total: data.total,
+        showSizeChanger: true,
+        showTotal: (total) => `共 ${total} 条`,
+        onChange: handlePageChange,
+        onShowSizeChange: handlePageSizeChange,
+      }"
+    >
+      <template #bodyCell="{ record, column }">
+        <template v-if="column.key === 'cover'">
+          <div class="cover-cell">
+            <a-image
+              v-if="record.cover"
+              :src="record.cover"
+              :width="160"
+              :height="90"
+              :preview="false"
+            />
+            <div v-else class="no-image">
+              <span>无图片</span>
+            </div>
+          </div>
+        </template>
+
+        <template v-if="column.key === 'title'">
+          <div style="max-width: 200px;">
+            <div style="font-weight: 500; margin-bottom: 4px;">{{ record.title }}</div>
+            <div style="font-size: 12px; color: #999;">{{ record.city }}{{ record.district }}</div>
+          </div>
+        </template>
+
+        <template v-if="column.key === 'price'">
+          <span style="color: #f5222d; font-weight: 500;">¥{{ record.basePrice }}</span>
+          <span v-if="record.weekendPrice" style="font-size: 12px; color: #999; margin-left: 4px;">/ 周末¥{{ record.weekendPrice }}</span>
+        </template>
+
+        <template v-if="column.key === 'auditStatus'">
+          <a-tag :color="getAuditStatusColor(record.auditStatus)">
+            {{ getAuditStatusText(record.auditStatus) }}
+          </a-tag>
+        </template>
+
+        <template v-if="column.key === 'publishStatus'">
+          <a-tag :color="getPublishStatusColor(record.publishStatus)">
+            {{ getPublishStatusText(record.publishStatus) }}
+          </a-tag>
+        </template>
+
+        <template v-if="column.key === 'action'">
+          <a-space wrap>
+            <a-button type="link" size="small" @click="handleEdit(record)">编辑</a-button>
+            <a-divider type="vertical" />
+            <a-button v-if="record.publishStatus === '0' || record.publishStatus === '2'" type="link" size="small" @click="handlePublish(record)">上架</a-button>
+            <a-button v-else-if="record.publishStatus === '1'" type="link" size="small" danger @click="handleOffline(record)">下架</a-button>
+            <a-divider type="vertical" />
+            <a-button type="link" size="small" @click="handleCalendar(record)">房态</a-button>
+            <a-divider type="vertical" />
+            <a-button v-if="record.auditStatus !== '1'" type="link" size="small" danger @click="handleDelete(record)">删除</a-button>
+          </a-space>
+        </template>
+      </template>
+    </a-table>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, reactive, computed } from 'vue';
+import { message, Modal } from 'ant-design-vue';
+import { useRouter } from 'vue-router';
+import { listApi, deleteApi, publishApi, offlineApi } from '/@/api/homestay';
+
+const router = useRouter();
+const data = reactive({
+  loading: false,
+  rows: [] as any[],
+  page: 1,
+  pageSize: 10,
+  total: 0,
+});
+
+const filters = reactive({
+  auditStatus: '',
+  publishStatus: '',
+  title: '',
+});
+
+const columns = reactive([
+  { title: '封面', dataIndex: 'cover', key: 'cover', align: 'center', width: 200 },
+  { title: '房源名称', dataIndex: 'title', key: 'title', minWidth: 200 },
+  { title: '位置', dataIndex: 'address', key: 'address', width: 180, ellipsis: true },
+  { title: '房型', dataIndex: 'roomType', key: 'roomType', width: 100 },
+  { title: '价格', dataIndex: 'price', key: 'price', width: 150, align: 'right' },
+  { title: '审核状态', dataIndex: 'auditStatus', key: 'auditStatus', width: 100, align: 'center' },
+  { title: '上架状态', dataIndex: 'publishStatus', key: 'publishStatus', width: 100, align: 'center' },
+  { title: '操作', dataIndex: 'action', key: 'action', width: 250, align: 'center', fixed: 'right' },
+]);
+
+const resolveImageUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  const raw = String(url).trim();
+  if (!raw) return '';
+  if (raw.startsWith('http://') || raw.startsWith('https://')) {
+    return raw.replace(/^http:/, 'https:');
+  }
+  return `https://js.ccnccn.cn/${raw.startsWith('/') ? raw.slice(1) : raw}`;
+};
+
+const processedRows = computed(() => {
+  return data.rows.map(row => ({
+    ...row,
+    cover: resolveImageUrl(row.coverImage),
+  }));
+});
+
+const getAuditStatusColor = (status: string) => {
+  const map: Record<string, string> = { '0': 'orange', '1': 'green', '2': 'red' };
+  return map[status] || 'default';
+};
+
+const getAuditStatusText = (status: string) => {
+  const map: Record<string, string> = { '0': '待审核', '1': '已通过', '2': '已拒绝' };
+  return map[status] || status;
+};
+
+const getPublishStatusColor = (status: string) => {
+  const map: Record<string, string> = { '0': 'default', '1': 'blue', '2': 'gray' };
+  return map[status] || 'default';
+};
+
+const getPublishStatusText = (status: string) => {
+  const map: Record<string, string> = { '0': '草稿', '1': '已上架', '2': '已下架' };
+  return map[status] || status;
+};
+
+const loadData = async () => {
+  data.loading = true;
+  try {
+    const res = await listApi({
+      pageNum: data.page,
+      pageSize: data.pageSize,
+      auditStatus: filters.auditStatus,
+      publishStatus: filters.publishStatus,
+      title: filters.title,
+    });
+    data.rows = Array.isArray(res.rows) ? res.rows : [];
+    data.total = res.total || 0;
+  } catch (e: any) {
+    message.error(e.message || '加载失败');
+    data.rows = [];
+    data.total = 0;
+  } finally {
+    data.loading = false;
+  }
+};
+
+const handleQuery = () => {
+  data.page = 1;
+  loadData();
+};
+
+const handleReset = () => {
+  filters.auditStatus = '';
+  filters.publishStatus = '';
+  filters.title = '';
+  handleQuery();
+};
+
+const handlePageChange = (page: number) => {
+  data.page = page;
+  loadData();
+};
+
+const handlePageSizeChange = (page: number, pageSize: number) => {
+  data.page = page;
+  data.pageSize = pageSize;
+  loadData();
+};
+
+const handleCreate = () => {
+  router.push('/landlord/homestay/create');
+};
+
+const handleEdit = (record: any) => {
+  router.push(`/landlord/homestay/edit/${record.id}`);
+};
+
+const handleCalendar = (record: any) => {
+  router.push({ name: 'landlordCalendar', query: { homestayId: record.id } });
+};
+
+const handlePublish = async (record: any) => {
+  if (record.auditStatus !== '1') {
+    message.warning('请先通过审核才能上架');
+    return;
+  }
+  try {
+    await publishApi(record.id);
+    message.success('上架成功');
+    loadData();
+  } catch (e: any) {
+    message.error(e.message || '上架失败');
+  }
+};
+
+const handleOffline = async (record: any) => {
+  try {
+    await offlineApi(record.id);
+    message.success('下架成功');
+    loadData();
+  } catch (e: any) {
+    message.error(e.message || '下架失败');
+  }
+};
+
+const handleDelete = (record: any) => {
+  Modal.confirm({
+    title: '确认删除',
+    content: `确定要删除房源"${record.title}"吗？`,
+    okText: '确认',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        await deleteApi(record.id);
+        message.success('删除成功');
+        loadData();
+      } catch (e: any) {
+        message.error(e.message || '删除失败');
+      }
+    },
+  });
+};
+
+onMounted(() => {
+  loadData();
+});
+</script>
+
+<style scoped lang="less">
+.page-view {
+  padding: 24px;
+}
+
+.table-operations {
+  margin-bottom: 16px;
+}
+
+.cover-cell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px;
+}
+
+.no-image {
+  width: 160px;
+  height: 90px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #f5f5f5;
+  color: #999;
+  font-size: 14px;
+}
+</style>

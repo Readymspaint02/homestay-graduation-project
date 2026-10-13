@@ -1,0 +1,36 @@
+# ---- Java / Maven ----
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+hs_err_pid*
+.mvn/
+mvnw
+mvnw.cmd
+
+# ---- Node.js / 前端 ----
+node_modules/
+dist/
+dist-ssr/
+*.local
+.DS_Store
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.settings/
+.classpath
+.project
+.factorypath
+
+# ---- 系统文件 ----
+Thumbs.db
+Desktop.ini
+
+# ---- 工具目录 ----
+.commandcode/
